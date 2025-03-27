@@ -22,18 +22,18 @@ public struct Request<T, E: Auth0APIError>: Requestable {
     /**
      The callback closure type for the request.
      */
-    public typealias Callback = (Result<T, E>) -> Void
+    public typealias Callback = @Sendable (Result<T, E>) -> Void
 
     let session: URLSession
     let url: URL
     let method: String
-    let handle: (Response<E>, Callback) -> Void
+    let handle: @Sendable (Response<E>, @escaping Callback) -> Void
     let parameters: [String: Any]
     let headers: [String: String]
     let logger: Logger?
     let telemetry: Telemetry
 
-    init(session: URLSession, url: URL, method: String, handle: @escaping (Response<E>, Callback) -> Void, parameters: [String: Any] = [:], headers: [String: String] = [:], logger: Logger?, telemetry: Telemetry) {
+    init(session: URLSession, url: URL, method: String, handle: @escaping @Sendable (Response<E>, @escaping Callback) -> Void, parameters: [String: Any] = [:], headers: [String: String] = [:], logger: Logger?, telemetry: Telemetry) {
         self.session = session
         self.url = url
         self.method = method
@@ -123,7 +123,9 @@ public extension Request {
      - Returns: A type-erased publisher.
      */
     func start() -> AnyPublisher<T, E> {
-        return Deferred { Future(self.start) }.eraseToAnyPublisher()
+        return Deferred { Future { @Sendable callback in
+            self.start(callback)
+        }}.eraseToAnyPublisher()
     }
 
 }
@@ -139,7 +141,7 @@ public extension Request {
      - Throws: An error that conforms to ``Auth0APIError``; either an ``AuthenticationError`` or a ``ManagementError``.
      */
     func start() async throws -> T {
-        return try await withCheckedThrowingContinuation { continuation in
+        return try await withCheckedThrowingContinuation { @Sendable continuation in
             self.start(continuation.resume)
         }
     }
